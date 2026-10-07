@@ -13,17 +13,35 @@ type Message struct {
 }
 
 func handleError(err error) {
-	// TODO: all
-	// Deal with an error event.
+	if err != nil {
+		panic(err)
+	}
 }
 
 func acceptConns(ln net.Listener, conns chan net.Conn) {
-	// TODO: all
-	// Continuously accept a network connection from the Listener
-	// and add it to the channel for handling connections.
+	for {
+		conn, err := ln.Accept()
+
+		handleError(err)
+
+		conns <- conn
+	}
 }
 
 func handleClient(client net.Conn, clientid int, msgs chan Message) {
+	scanner := bufio.NewScanner(client)
+
+	for scanner.Scan() {
+
+		msg:= Message{
+			sender: clientid,
+			message: scanner.Text(),
+		}
+
+		msgs <- msg
+	}
+
+	client.Close()
 	// TODO: all
 	// So long as this connection is alive:
 	// Read in new messages as delimited by '\n's
@@ -36,6 +54,14 @@ func main() {
 	// Default to port 8030
 	portPtr := flag.String("port", ":8030", "port to listen on")
 	flag.Parse()
+
+	ln, err := net.Listen("tcp", *portPtr)
+
+	handleError(err)
+
+	defer ln.Close()
+
+	fmt.Println("Server listening on", *portPtr)
 
 	//TODO Create a Listener for TCP connections on the port given above.
 
@@ -51,11 +77,30 @@ func main() {
 	for {
 		select {
 		case conn := <-conns:
+			clientid := len(clients)
+
+			clients[clientid] = conn
+
+			fmt.Println("Client connected:", clientid)
+
+			go handleClient(conn, clientid, msgs)
 			//TODO Deal with a new connection
 			// - assign a client ID
 			// - add the client to the clients map
 			// - start to asynchronously handle messages from this client
 		case msg := <-msgs:
+			fmt.Println(
+				"Client",
+				msg.sender,
+				":",
+				msg.message,
+			)
+			for id, conn := range clients {
+
+				if id != msg.sender {
+					fmt.Fprintln(conn, msg.message)
+				}
+			}
 			//TODO Deal with a new message
 			// Send the message to all clients that aren't the sender
 		}
